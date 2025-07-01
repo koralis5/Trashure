@@ -9,8 +9,15 @@ import 'screens/profile_screen.dart';
 import 'screens/own_listing_screen.dart';
 import 'screens/edit_listing_screen.dart';
 import 'screens/edit_profile_screen.dart';
+import 'firebase_options.dart';
+import 'package:firebase_core/firebase_core.dart';
 
-void main() {
+
+void main() async{
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const MyApp());
 }
 
