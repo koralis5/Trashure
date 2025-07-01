@@ -11,13 +11,15 @@ import 'screens/edit_listing_screen.dart';
 import 'screens/edit_profile_screen.dart';
 import 'firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
-
+import 'package:get_it/get_it.dart';
+import 'services/firebase_service.dart';
 
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  GetIt.instance.registerLazySingleton(() => FirebaseService());
   runApp(const MyApp());
 }
 
@@ -30,7 +32,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       initialRoute: LoginScreen.routeName,
       routes: {
-        LoginScreen.routeName: (_) => const LoginScreen(),
+        LoginScreen.routeName: (_) => LoginScreen(),
         RegisterScreen.routeName: (_) => RegisterScreen(),
         HomeScreen.routeName: (_) => const HomeScreen(),
         ResetPasswordScreen.routeName: (_) => const ResetPasswordScreen(),

@@ -6,6 +6,8 @@ class CustomTextField extends StatelessWidget {
   final bool obscureText;
   final TextEditingController controller;
   final TextInputType? keyboardType;
+  final FormFieldValidator<String>? validator;
+  final FormFieldSetter<String>? onSaved;
 
   const CustomTextField({
     super.key,
@@ -14,10 +16,28 @@ class CustomTextField extends StatelessWidget {
     required this.controller,
     this.obscureText = false,
     this.keyboardType,
+    this.validator,
+    this.onSaved,
   });
 
   @override
   Widget build(BuildContext context) {
+    Widget textFormField = TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      validator: validator,
+      onSaved: onSaved, // ✅ CORRECT
+      decoration: InputDecoration(
+        hintText: hintText,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      ),
+    );
+
+
     if (label != null && label!.isNotEmpty) {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -29,35 +49,12 @@ class CustomTextField extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
             ),
           ),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              obscureText: obscureText,
-              keyboardType: keyboardType,
-              decoration: InputDecoration(
-                hintText: hintText,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              ),
-            ),
-          ),
+          const SizedBox(width: 8),
+          Expanded(child: textFormField),
         ],
       );
     } else {
-      return TextField(
-        controller: controller,
-        obscureText: obscureText,
-        keyboardType: keyboardType,
-        decoration: InputDecoration(
-          hintText: hintText,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        ),
-      );
+      return textFormField;
     }
   }
 }
