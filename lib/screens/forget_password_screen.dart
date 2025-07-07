@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:trashure/models/colours.dart';
 import 'package:trashure/widgets/custom_text_field.dart';
 
@@ -7,10 +8,45 @@ class ResetPasswordScreen extends StatelessWidget {
 
   const ResetPasswordScreen({super.key});
 
+  Future<void> _sendPasswordResetEmail(BuildContext context, String email) async {
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email.trim());
+      FocusScope.of(context).unfocus();
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password reset email sent. Please check your inbox.'),
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_getErrorMessage(e.code))),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An error occurred: ${e.toString()}')),
+      );
+    }
+  }
+
+  String _getErrorMessage(String errorCode) {
+    switch (errorCode) {
+      case 'user-not-found':
+        return 'No user found with this email address.';
+      case 'invalid-email':
+        return 'The email address is not valid.';
+      case 'user-disabled':
+        return 'This user account has been disabled.';
+      default:
+        return 'Failed to send password reset email.';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final emailController = TextEditingController();
-    final passwordController = TextEditingController();
 
     return Scaffold(
       backgroundColor: AppColour.background,
@@ -43,14 +79,19 @@ class ResetPasswordScreen extends StatelessWidget {
                       label: 'Email',
                       hintText: 'Johndoe@gmail.com',
                       controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
                     ),
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
                     onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Verification email sent")),
-                      );
+                      if (emailController.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Please enter your email")),
+                        );
+                      } else {
+                        _sendPasswordResetEmail(context, emailController.text);
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       shape: RoundedRectangleBorder(
@@ -59,41 +100,18 @@ class ResetPasswordScreen extends StatelessWidget {
                       backgroundColor: Colors.white,
                       foregroundColor: Colors.black,
                     ),
-                    child: const Text("Send Verification"),
+                    child: const Text("Send Link"),
                   ),
                 ],
               ),
-
               const SizedBox(height: 32),
-
-              // New Password Field
-              CustomTextField(
-                label: 'New Password',
-                hintText: '********',
-                controller: passwordController,
-                obscureText: true,
-              ),
-
-              const SizedBox(height: 32),
-              Center(
-                child: ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Password updated")),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black,
-                    textStyle: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  child: const Text("Update Password"),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8.0),
+                child: Text(
+                  "Enter your email and we'll send you a link to reset your password.",
+                  style: TextStyle(color: Colors.grey),
                 ),
-              )
+              ),
             ],
           ),
         ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../screens/home_screen.dart';
 import '../screens/add_listing_screen.dart';
 import '../screens/profile_screen.dart';
@@ -9,6 +10,21 @@ class BottomNavBar extends StatelessWidget {
   final int currentIndex;
 
   const BottomNavBar({super.key, required this.currentIndex});
+
+  Future<void> _logout(BuildContext context) async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        LoginScreen.routeName,
+            (route) => false,
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Logout failed: ${e.toString()}')),
+      );
+    }
+  }
 
   void _onItemTapped(BuildContext context, int index) {
     if (index == currentIndex) return;
@@ -24,11 +40,7 @@ class BottomNavBar extends StatelessWidget {
         Navigator.pushReplacementNamed(context, ProfileScreen.routeName);
         break;
       case 3:
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          LoginScreen.routeName,
-          (route) => false,
-        );
+        _logout(context); // Call logout function instead of direct navigation
         break;
     }
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'edit_profile_screen.dart';
 import '../models/colours.dart';
 import '../widgets/bottom_navbar.dart';
@@ -15,6 +16,24 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final Color backgroundColor = AppColour.background;
   final Color navBarColor = AppColour.primaryGreen;
+  final User? currentUser = FirebaseAuth.instance.currentUser;
+  String userName = "Loading...";
+  String userEmail = "Loading...";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  void _loadUserData() {
+    if (currentUser != null) {
+      setState(() {
+        userName = currentUser!.displayName ?? "No name set";
+        userEmail = currentUser!.email ?? "No email available";
+      });
+    }
+  }
 
   void _showOptions(BuildContext context) {
     showModalBottomSheet(
@@ -78,17 +97,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 24),
 
               // Profile Picture
-              const CircleAvatar(
+              CircleAvatar(
                 radius: 60,
                 backgroundColor: Colors.grey,
-                child: Icon(Icons.person, size: 60, color: Colors.white),
+                child: currentUser?.photoURL != null
+                    ? ClipOval(
+                  child: Image.network(
+                    currentUser!.photoURL!,
+                    width: 120,
+                    height: 120,
+                    fit: BoxFit.cover,
+                  ),
+                )
+                    : const Icon(Icons.person, size: 60, color: Colors.white),
               ),
               const SizedBox(height: 16),
 
               // Name
-              const Text(
-                'John Doe',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              Text(
+                userName,
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+
+              // Email
+              Text(
+                userEmail,
+                style: const TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 8),
 
@@ -99,7 +134,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   foregroundColor: Colors.white,
                 ),
                 onPressed: () {
-                  Navigator.pushNamed(context, EditProfileScreen.routeName);
+                  Navigator.pushNamed(context, EditProfileScreen.routeName)
+                      .then((_) => _loadUserData()); // Refresh after editing
                 },
                 child: const Text('Edit Profile'),
               ),
@@ -111,7 +147,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Listing',
+                    'My Listings',
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -154,18 +190,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Stylish Chair',
+                                const Text('Stylish Chair',
                                     style: TextStyle(fontSize: 16)),
-                                Text('\$120',
+                                const Text('\$120',
                                     style:
                                     TextStyle(fontWeight: FontWeight.bold)),
-                                Text('John Doe',
-                                    style: TextStyle(color: Colors.grey)),
+                                Text(userName,
+                                    style: const TextStyle(color: Colors.grey)),
                               ],
                             ),
                           ),

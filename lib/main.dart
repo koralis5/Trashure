@@ -13,6 +13,7 @@ import 'firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:get_it/get_it.dart';
 import 'services/firebase_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,29 +21,34 @@ void main() async{
     options: DefaultFirebaseOptions.currentPlatform,
   );
   GetIt.instance.registerLazySingleton(() => FirebaseService());
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  FirebaseService fbService = GetIt.instance<FirebaseService>();
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      initialRoute: LoginScreen.routeName,
-      routes: {
-        LoginScreen.routeName: (_) => LoginScreen(),
-        RegisterScreen.routeName: (_) => RegisterScreen(),
-        HomeScreen.routeName: (_) => const HomeScreen(),
-        ResetPasswordScreen.routeName: (_) => const ResetPasswordScreen(),
-        AddListingScreen.routeName: (_) => AddListingScreen(),
-        ProfileScreen.routeName: (_) => const ProfileScreen(),
-        SelectListingImage.routeName: (_) => const SelectListingImage(),
-        OwnListingScreen.routeName: (_) => const OwnListingScreen(),
-        EditListingScreen.routeName: (_) => const EditListingScreen(),
-        EditProfileScreen.routeName: (_) => const EditProfileScreen()
-      },
+    return StreamBuilder<User?>(
+      stream: fbService.getAuthUser(),
+      builder: (context, Snapshot) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          home: Snapshot.hasData ? HomeScreen() : LoginScreen(),
+          routes: {
+            LoginScreen.routeName: (_) => LoginScreen(),
+            RegisterScreen.routeName: (_) => RegisterScreen(),
+            HomeScreen.routeName: (_) => const HomeScreen(),
+            ResetPasswordScreen.routeName: (_) => const ResetPasswordScreen(),
+            AddListingScreen.routeName: (_) => AddListingScreen(),
+            ProfileScreen.routeName: (_) => const ProfileScreen(),
+            SelectListingImage.routeName: (_) => const SelectListingImage(),
+            OwnListingScreen.routeName: (_) => const OwnListingScreen(),
+            EditListingScreen.routeName: (_) => const EditListingScreen(),
+            EditProfileScreen.routeName: (_) => const EditProfileScreen()
+          },
+        );
+      }
     );
   }
 }

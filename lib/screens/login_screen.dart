@@ -6,10 +6,13 @@ import '../widgets/custom_text_field.dart';
 import 'register_screen.dart';
 import 'forget_password_screen.dart';
 import 'home_screen.dart';
+import 'package:trashure/screens/forget_password_screen.dart';
+import 'package:trashure/screens/register_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 
 class LoginScreen extends StatelessWidget {
   static const routeName = '/login';
-
 
   final FirebaseService fbService = GetIt.instance<FirebaseService>();
   final GlobalKey<FormState> form = GlobalKey<FormState>();
@@ -24,18 +27,18 @@ class LoginScreen extends StatelessWidget {
     if (isValid) {
       form.currentState!.save();
       try {
-        fbService.login(email!, password!);
-
+        await fbService.login(email, password);
         FocusScope.of(context).unfocus();
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('User logged in successfully!'),
-            backgroundColor: Colors.green,
-          ),
+          const SnackBar(content: Text('User logged in successfully!')),
         );
-
         Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
+      }
+      on FirebaseAuthException catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.code)));
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
