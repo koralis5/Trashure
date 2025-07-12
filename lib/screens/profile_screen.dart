@@ -35,9 +35,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         userName = user.displayName ?? 'No name set';
         userEmail = user.email ?? 'No email available';
-        photoURL = user.photoURL;
+        photoURL = _getSafeImageUrl(user.photoURL);
       });
     }
+  }
+
+  String? _getSafeImageUrl(String? url) {
+    if (url == null) return null;
+    // Handle Google profile image URLs
+    if (url.contains('googleusercontent.com')) {
+      return url.replaceAll('s96-c', 's400-c'); // Get higher resolution image
+    }
+    return url;
   }
 
   void _showOptions(BuildContext context) {
@@ -99,16 +108,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const SizedBox(height: 24),
 
+              // Profile Picture - Using original approach
               CircleAvatar(
                 radius: 60,
-                backgroundColor: Colors.grey,
-                backgroundImage: photoURL != null && photoURL!.isNotEmpty
-                    ? NetworkImage(photoURL!)
-                    : null,
-                child: photoURL == null || photoURL!.isEmpty
-                    ? const Icon(Icons.person, size: 60, color: Colors.white)
-                    : null,
+                backgroundColor: Colors.grey[300],
+                child: photoURL != null
+                    ? Image.network(
+                  photoURL!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Icon(Icons.person, size: 60, color: Colors.white);
+                  },
+                )
+                    : const Icon(Icons.person, size: 60, color: Colors.white),
               ),
+
               const SizedBox(height: 16),
 
               Text(
@@ -130,7 +144,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 onPressed: () {
                   Navigator.pushNamed(context, EditProfileScreen.routeName)
-                      .then((_) => _loadUserData()); // Refresh after editing
+                      .then((_) => _loadUserData());
                 },
                 child: const Text('Edit Profile'),
               ),

@@ -6,6 +6,7 @@ import '../widgets/custom_text_field.dart';
 import 'register_screen.dart';
 import 'forget_password_screen.dart';
 import 'home_screen.dart';
+import 'phone_login_screen.dart'; // <--- Add this import
 
 class LoginScreen extends StatefulWidget {
   static const routeName = '/login';
@@ -147,14 +148,79 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 24),
 
-                  ElevatedButton.icon(
+                  ElevatedButton(
                     onPressed: googleLogin,
-                    icon: const Icon(Icons.login),
-                    label: const Text('Sign in with Google'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: Colors.black,
                       side: const BorderSide(color: Colors.black),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Image.asset(
+                          'images/google_icon.png',
+                          height: 24,
+                          width: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        const Text('Sign in with Google'),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // --- Facebook login temporarily disabled ---
+                  /*
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      try {
+                        final credential = await fbService.signInWithFacebook();
+                        if (credential.user != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Facebook sign-in successful'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                          Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
+                        }
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Facebook login failed: ${e.toString()}'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.facebook, color: Colors.white),
+                    label: const Text('Sign in with Facebook'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[800],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    ),
+                  ),
+                  */
+
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PhoneLoginScreen()),
+                      );
+                    },
+                    icon: const Icon(Icons.phone_android),
+                    label: const Text('Sign in with Phone'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[700],
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                     ),
                   ),
