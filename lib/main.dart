@@ -14,41 +14,47 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:get_it/get_it.dart';
 import 'services/firebase_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'core/setup.dart';
 
-void main() async{
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  GetIt.instance.registerLazySingleton(() => FirebaseService());
-  runApp(MyApp());
+
+  setupServices();
+
+  runApp(const MyApp());
 }
 
+
 class MyApp extends StatelessWidget {
-  FirebaseService fbService = GetIt.instance<FirebaseService>();
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final FirebaseService fbService = GetIt.instance<FirebaseService>();
+
     return StreamBuilder<User?>(
       stream: fbService.getAuthUser(),
-      builder: (context, Snapshot) {
+      builder: (context, snapshot) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          home: Snapshot.hasData ? HomeScreen() : LoginScreen(),
+          home: snapshot.hasData ? const HomeScreen() : const LoginScreen(),
           routes: {
-            LoginScreen.routeName: (_) => LoginScreen(),
-            RegisterScreen.routeName: (_) => RegisterScreen(),
+            LoginScreen.routeName: (_) => const LoginScreen(),
+            RegisterScreen.routeName: (_) => const RegisterScreen(),
             HomeScreen.routeName: (_) => const HomeScreen(),
             ResetPasswordScreen.routeName: (_) => const ResetPasswordScreen(),
-            AddListingScreen.routeName: (_) => AddListingScreen(),
+            AddListingScreen.routeName: (_) => const AddListingScreen(),
             ProfileScreen.routeName: (_) => const ProfileScreen(),
             SelectListingImage.routeName: (_) => const SelectListingImage(),
             OwnListingScreen.routeName: (_) => const OwnListingScreen(),
             EditListingScreen.routeName: (_) => const EditListingScreen(),
-            EditProfileScreen.routeName: (_) => const EditProfileScreen()
+            EditProfileScreen.routeName: (_) => const EditProfileScreen(),
           },
         );
-      }
+      },
     );
   }
 }

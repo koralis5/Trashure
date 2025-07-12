@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'edit_profile_screen.dart';
+import 'package:get_it/get_it.dart';
 import '../models/colours.dart';
 import '../widgets/bottom_navbar.dart';
+import 'edit_profile_screen.dart';
 import 'own_listing_screen.dart';
+import '../services/firebase_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   static const routeName = '/profile';
@@ -14,11 +16,12 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  final FirebaseService fbService = GetIt.instance<FirebaseService>();
   final Color backgroundColor = AppColour.background;
-  final Color navBarColor = AppColour.primaryGreen;
-  final User? currentUser = FirebaseAuth.instance.currentUser;
+
   String userName = "Loading...";
   String userEmail = "Loading...";
+  String? photoURL;
 
   @override
   void initState() {
@@ -27,10 +30,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _loadUserData() {
-    if (currentUser != null) {
+    final user = fbService.getCurrentUser();
+    if (user != null) {
       setState(() {
-        userName = currentUser!.displayName ?? "No name set";
-        userEmail = currentUser!.email ?? "No email available";
+        userName = user.displayName ?? 'No name set';
+        userEmail = user.email ?? 'No email available';
+        photoURL = user.photoURL;
       });
     }
   }
@@ -51,9 +56,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ListTile(
             leading: const Icon(Icons.delete),
             title: const Text('Delete Listing'),
-            onTap: () {
-              _confirmDelete(context);
-            },
+            onTap: () => _confirmDelete(context),
           ),
         ],
       ),
@@ -96,38 +99,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const SizedBox(height: 24),
 
-              // Profile Picture
               CircleAvatar(
                 radius: 60,
                 backgroundColor: Colors.grey,
-                child: currentUser?.photoURL != null
-                    ? ClipOval(
-                  child: Image.network(
-                    currentUser!.photoURL!,
-                    width: 120,
-                    height: 120,
-                    fit: BoxFit.cover,
-                  ),
-                )
-                    : const Icon(Icons.person, size: 60, color: Colors.white),
+                backgroundImage: photoURL != null && photoURL!.isNotEmpty
+                    ? NetworkImage(photoURL!)
+                    : null,
+                child: photoURL == null || photoURL!.isEmpty
+                    ? const Icon(Icons.person, size: 60, color: Colors.white)
+                    : null,
               ),
               const SizedBox(height: 16),
 
-              // Name
               Text(
                 userName,
                 style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
 
-              // Email
               Text(
                 userEmail,
                 style: const TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 8),
 
-              // Edit Profile Button
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColour.primaryGreen,
@@ -141,7 +136,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Listing Title
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 child: Align(
@@ -154,7 +148,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Listing Card
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: GridView.count(
@@ -195,13 +188,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('Stylish Chair',
-                                    style: TextStyle(fontSize: 16)),
-                                const Text('\$120',
-                                    style:
-                                    TextStyle(fontWeight: FontWeight.bold)),
-                                Text(userName,
-                                    style: const TextStyle(color: Colors.grey)),
+                                const Text('Stylish Chair', style: TextStyle(fontSize: 16)),
+                                const Text('\$120', style: TextStyle(fontWeight: FontWeight.bold)),
+                                Text(userName, style: const TextStyle(color: Colors.grey)),
                               ],
                             ),
                           ),

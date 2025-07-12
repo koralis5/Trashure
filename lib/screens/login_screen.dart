@@ -6,47 +6,71 @@ import '../widgets/custom_text_field.dart';
 import 'register_screen.dart';
 import 'forget_password_screen.dart';
 import 'home_screen.dart';
-import 'package:trashure/screens/forget_password_screen.dart';
-import 'package:trashure/screens/register_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   static const routeName = '/login';
 
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
   final FirebaseService fbService = GetIt.instance<FirebaseService>();
   final GlobalKey<FormState> form = GlobalKey<FormState>();
+
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
 
   String? email;
   String? password;
 
-  LoginScreen({super.key});
+  Future<void> login(BuildContext context) async {
+    if (!form.currentState!.validate()) return;
+    form.currentState!.save();
 
-  void login(BuildContext context) async {
-    final isValid = form.currentState!.validate();
-    if (isValid) {
-      form.currentState!.save();
-      try {
-        await fbService.login(email, password);
-        FocusScope.of(context).unfocus();
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    try {
+      await fbService.login(email!, password!);
+      FocusScope.of(context).unfocus();
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('User logged in successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login failed: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> googleLogin() async {
+    try {
+      final credential = await fbService.googleSignIn();
+      if (credential.user != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User logged in successfully!')),
+          const SnackBar(
+            content: Text('Google sign-in successful'),
+            backgroundColor: Colors.green,
+          ),
         );
         Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
       }
-      on FirebaseAuthException catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.code)));
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Login failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Google login failed: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -69,12 +93,10 @@ class LoginScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 40),
 
-                  // Email Field
                   CustomTextField(
                     hintText: 'Email',
-                    controller: TextEditingController(),
+                    controller: emailController,
                     keyboardType: TextInputType.emailAddress,
-                    // Save and validate email
                     validator: (value) {
                       if (value == null || value.isEmpty || !value.contains('@')) {
                         return 'Enter a valid email';
@@ -85,11 +107,10 @@ class LoginScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
 
-                  // Password Field
                   CustomTextField(
                     hintText: 'Password',
                     obscureText: true,
-                    controller: TextEditingController(),
+                    controller: passwordController,
                     validator: (value) {
                       if (value == null || value.length < 6) {
                         return 'Password must be at least 6 characters';
@@ -114,22 +135,32 @@ class LoginScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
 
-                  // Login Button
                   ElevatedButton(
                     onPressed: () => login(context),
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 200, vertical: 14),
+                      padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 14),
                       backgroundColor: Colors.white,
                       foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      textStyle: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     child: const Text("Login"),
                   ),
 
                   const SizedBox(height: 24),
+
+                  ElevatedButton.icon(
+                    onPressed: googleLogin,
+                    icon: const Icon(Icons.login),
+                    label: const Text('Sign in with Google'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      side: const BorderSide(color: Colors.black),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
                   GestureDetector(
                     onTap: () {
                       Navigator.pushNamed(context, RegisterScreen.routeName);
