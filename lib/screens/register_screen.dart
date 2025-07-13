@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:trashure/models/colours.dart';
-import 'package:trashure/screens/home_screen.dart';
 import 'package:trashure/widgets/custom_text_field.dart';
 import 'package:trashure/services/firebase_service.dart';
 import 'package:get_it/get_it.dart';
@@ -86,15 +85,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       // Update displayName on Firebase Auth user
       await userCredential.user!.updateDisplayName(username);
+      await fbService.sendEmailVerification();
 
-      // NOTE: For profile photo, you'd need to upload to Firebase Storage separately
-      // and then update user photoURL here if you want to keep that functionality
+      // TODO: Profile picture upload logic
+      // Tried, worked, but stopped working
+
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User registered successfully!')),
+        const SnackBar(content: Text('Verification email sent. Please verify your email.')),
       );
 
-      Navigator.pushReplacementNamed(context, HomeScreen.routeName);
+      Navigator.pushReplacementNamed(context, '/email_verification');
     } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_getErrorMessage(e.code))),

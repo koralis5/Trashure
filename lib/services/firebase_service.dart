@@ -202,4 +202,51 @@ class FirebaseService {
     );
     return await _auth.signInWithCredential(credential);
   }
+
+  // Send verification email (async)
+  Future<void> sendEmailVerification() async {
+    final user = _auth.currentUser;
+    if (user != null && !user.emailVerified) {
+      await user.sendEmailVerification();
+    }
+  }
+
+  // Check if email is verified (async)
+  Future<bool> isEmailVerified([User? user]) async {
+    user ??= _auth.currentUser;
+    if (user != null) {
+      await user.reload();
+      return user.emailVerified;
+    }
+    return false;
+  }
+
+
+  // Stream for email verification changes
+  Stream<bool> get emailVerificationStream {
+    return _auth.authStateChanges().asyncMap((user) async {
+      if (user != null) {
+        await user.reload();
+        return user.emailVerified;
+      }
+      return false;
+    });
+  }
+
+  //reauthenticate user
+  Future<void> reauthenticateUser(String email, String password) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('No user is currently signed in.');
+
+    final credential = EmailAuthProvider.credential(email: email, password: password);
+    await user.reauthenticateWithCredential(credential);
+  }
+
+  //Change Email
+  Future<void> changeEmail(String newEmail) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('No user is currently signed in.');
+
+    await user.verifyBeforeUpdateEmail(newEmail);
+  }
 }

@@ -15,6 +15,7 @@ import 'package:get_it/get_it.dart';
 import 'services/firebase_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'core/setup.dart';
+import 'screens/email_verification_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,9 +39,27 @@ class MyApp extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: fbService.getAuthUser(),
       builder: (context, snapshot) {
+        Widget startingPage;
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          // While checking auth state, show a splash or loading
+          startingPage = const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        } else if (snapshot.hasData) {
+          final user = snapshot.data!;
+          if (user.emailVerified || user.providerData.any((info) => info.providerId == 'google.com')) {
+            startingPage = const HomeScreen(); // Email verified or using Google
+          } else {
+            startingPage = const EmailVerificationScreen(); // Not verified
+          }
+        } else {
+          startingPage = const LoginScreen(); // Not logged in
+        }
+
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          home: snapshot.hasData ? const HomeScreen() : const LoginScreen(),
+          home: startingPage,
           routes: {
             LoginScreen.routeName: (_) => const LoginScreen(),
             RegisterScreen.routeName: (_) => const RegisterScreen(),
@@ -52,6 +71,7 @@ class MyApp extends StatelessWidget {
             OwnListingScreen.routeName: (_) => const OwnListingScreen(),
             EditListingScreen.routeName: (_) => const EditListingScreen(),
             EditProfileScreen.routeName: (_) => const EditProfileScreen(),
+            EmailVerificationScreen.routeName: (_) => const EmailVerificationScreen(),
           },
         );
       },

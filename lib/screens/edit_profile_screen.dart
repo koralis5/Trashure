@@ -32,6 +32,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   XFile? _imageFile;
   bool _isLoading = false;
 
+  // To track if user signed in via email/password
+  bool canChangeEmailPassword = false;
+
   @override
   void initState() {
     super.initState();
@@ -39,11 +42,26 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _loadUserData() async {
-    final user = _auth.currentUser;
-    if (user != null) {
-      usernameController.text = user.displayName ?? '';
-      emailController.text = user.email ?? '';
-      await _loadUserPhone(user.uid);
+    try {
+      await _auth.currentUser?.reload();
+      final user = _auth.currentUser;
+
+      if (user != null && mounted) {
+        usernameController.text = user.displayName ?? '';
+        emailController.text = user.email ?? '';
+
+        // Detect sign-in method(s)
+        final providers = user.providerData.map((p) => p.providerId).toList();
+
+        // Enable email/password edit only if signed in via 'password' provider
+        canChangeEmailPassword = providers.contains('password');
+
+        await _loadUserPhone(user.uid);
+
+        setState(() {}); // Refresh UI with updated state
+      }
+    } catch (e) {
+      debugPrint('Error loading user data: $e');
     }
   }
 
@@ -130,27 +148,47 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Handle reauthentication if needed
-      if (newPasswordController.text.isNotEmpty ||
-          emailController.text.trim() != user.email) {
+      // Reauthenticate only if changing password or email, and allowed
+      if (canChangeEmailPassword &&
+          (newPasswordController.text.isNotEmpty ||
+              emailController.text.trim() != user.email)) {
         if (!await _reauthenticate(currentPasswordController.text)) {
           setState(() => _isLoading = false);
           return;
         }
       }
 
-      // Update profile information
+      // Update display name (allowed for all)
       await user.updateDisplayName(usernameController.text.trim());
 
-      if (emailController.text.trim() != user.email) {
+      if (canChangeEmailPassword && emailController.text.trim() != user.email) {
         await user.verifyBeforeUpdateEmail(emailController.text.trim());
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Verification email sent to the new address. '
+                    'Please verify to complete the email change. You will be signed out now.',
+              ),
+            ),
+          );
+        }
+
+        await _auth.signOut();
+
+        if (mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        }
+
+        return; // Stop here since user is signed out
       }
 
-      if (newPasswordController.text.isNotEmpty) {
+      if (canChangeEmailPassword && newPasswordController.text.isNotEmpty) {
         await user.updatePassword(newPasswordController.text);
       }
 
-      // Handle profile image update
+      // Update profile picture
       if (_imageFile != null) {
         final storageRef = FirebaseStorage.instance
             .ref()
@@ -171,10 +209,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         await user.updatePhotoURL(url);
       }
 
-      // Update Firestore data
+      // Update Firestore with phone (allowed for all)
       await _firestoreService.saveUserProfile(user.uid, {
         'phone': phoneController.text.trim(),
       });
+
+      await user.reload();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -260,20 +300,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 label: 'Username',
                 hintText: 'Enter your username',
                 controller: usernameController,
-                validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+                validator: (val) =>
+                val == null || val.isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 16),
+              // Email field, disabled if cannot change
               CustomTextField(
                 label: 'Email',
                 hintText: 'Enter your email',
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
+                enabled: canChangeEmailPassword,
                 validator: (val) {
+                  if (!canChangeEmailPassword) return null;
                   if (val == null || val.isEmpty) return 'Required';
                   return val.contains('@') ? null : 'Enter valid email';
                 },
               ),
               const SizedBox(height: 16),
+              // Phone number allowed for all
               CustomTextField(
                 label: 'Phone Number',
                 hintText: 'Enter your phone number',
@@ -281,34 +326,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 keyboardType: TextInputType.phone,
               ),
               const SizedBox(height: 16),
-              CustomTextField(
-                label: 'Current Password',
-                hintText: 'Required for changes',
-                controller: currentPasswordController,
-                obscureText: true,
-                validator: (val) {
-                  final needsValidation = newPasswordController.text.isNotEmpty ||
-                      emailController.text.trim() != (user?.email ?? '');
-                  if (needsValidation && (val == null || val.isEmpty)) {
-                    return 'Required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              CustomTextField(
-                label: 'New Password',
-                hintText: 'Leave blank to keep current',
-                controller: newPasswordController,
-                obscureText: true,
-                validator: (val) {
-                  if (val != null && val.isNotEmpty && val.length < 6) {
-                    return 'Minimum 6 characters';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
+              // Current password required only if allowed and changing password/email
+              if (canChangeEmailPassword)
+                CustomTextField(
+                  label: 'Current Password',
+                  hintText: 'Required for changes',
+                  controller: currentPasswordController,
+                  obscureText: true,
+                  validator: (val) {
+                    final needsValidation = newPasswordController.text.isNotEmpty ||
+                        emailController.text.trim() != (user?.email ?? '');
+                    if (needsValidation && (val == null || val.isEmpty)) {
+                      return 'Required';
+                    }
+                    return null;
+                  },
+                ),
+              if (canChangeEmailPassword) const SizedBox(height: 16),
+              // New password allowed only if allowed
+              if (canChangeEmailPassword)
+                CustomTextField(
+                  label: 'New Password',
+                  hintText: 'Leave blank to keep current',
+                  controller: newPasswordController,
+                  obscureText: true,
+                  validator: (val) {
+                    if (val != null && val.isNotEmpty && val.length < 6) {
+                      return 'Minimum 6 characters';
+                    }
+                    return null;
+                  },
+                ),
+              if (canChangeEmailPassword) const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(

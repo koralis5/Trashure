@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get_it/get_it.dart';
 import '../models/colours.dart';
 import '../widgets/bottom_navbar.dart';
@@ -108,7 +107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const SizedBox(height: 24),
 
-              // Profile Picture - Using original approach
+              // Profile Picture
               CircleAvatar(
                 radius: 60,
                 backgroundColor: Colors.grey[300],

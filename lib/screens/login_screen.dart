@@ -6,7 +6,10 @@ import '../widgets/custom_text_field.dart';
 import 'register_screen.dart';
 import 'forget_password_screen.dart';
 import 'home_screen.dart';
-import 'phone_login_screen.dart'; // <--- Add this import
+import 'phone_login_screen.dart';
+import 'email_verification_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 
 class LoginScreen extends StatefulWidget {
   static const routeName = '/login';
@@ -32,16 +35,24 @@ class _LoginScreenState extends State<LoginScreen> {
     form.currentState!.save();
 
     try {
-      await fbService.login(email!, password!);
-      FocusScope.of(context).unfocus();
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('User logged in successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      final userCred = await fbService.login(email!, password!);
+      final user = userCred.user;
 
+      if (user == null) {
+        throw Exception('Login failed: No user returned.');
+      }
+
+      await user.reload(); // Refresh user
+      final isVerified = FirebaseAuth.instance.currentUser?.emailVerified ?? false;
+
+
+      if (!isVerified) {
+        await fbService.sendEmailVerification();
+        Navigator.pushReplacementNamed(context, EmailVerificationScreen.routeName);
+        return;
+      }
+
+      FocusScope.of(context).unfocus();
       Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -175,7 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   const SizedBox(height: 24),
 
-                  // --- Facebook login temporarily disabled ---
+                  // Facebook Login (I give up, it maybe could have worked on Android, but not on website)
                   /*
                   ElevatedButton.icon(
                     onPressed: () async {
