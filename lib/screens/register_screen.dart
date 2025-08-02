@@ -28,6 +28,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   XFile? _imageFile;
   final ImagePicker _picker = ImagePicker();
+  bool _isLoading = false;
 
   Future<void> _selectProfilePicture() async {
     showModalBottomSheet(
@@ -72,6 +73,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final String email = emailController.text.trim();
     final String password = passwordController.text.trim();
     final String username = usernameController.text.trim();
+    final String phone = phoneController.text.trim();
 
     if (password != confirmPasswordController.text.trim()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -80,30 +82,56 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    try {
-      final userCredential = await fbService.register(email, password);
+    setState(() => _isLoading = true);
 
-      // Update displayName on Firebase Auth user
-      await userCredential.user!.updateDisplayName(username);
+    try {
+      // Register user
+      final userCredential = await fbService.register(email, password);
+      final user = userCredential.user!;
+
+      // Update display name in Firebase Auth
+      await user.updateDisplayName(username);
+
+      // Handle profile picture upload if selected
+      String? profileImageBase64;
+      if (_imageFile != null) {
+        profileImageBase64 = await fbService.firestoreService.convertImageToBase64(_imageFile!);
+      }
+
+      // Update Firestore profile with complete information
+      await fbService.firestoreService.updateUserProfile(
+        uid: user.uid,
+        displayName: username,
+        phoneNumber: phone.isNotEmpty ? phone : null,
+        profileImageBase64: profileImageBase64,
+      );
+
+      // Send email verification
       await fbService.sendEmailVerification();
 
-      // TODO: Profile picture upload logic
-      // Tried, worked, but stopped working
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registration successful! Verification email sent. Please verify your email.')),
+        );
 
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Verification email sent. Please verify your email.')),
-      );
-
-      Navigator.pushReplacementNamed(context, '/email_verification');
+        Navigator.pushReplacementNamed(context, '/email_verification');
+      }
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_getErrorMessage(e.code))),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_getErrorMessage(e.code))),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -118,6 +146,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       default:
         return 'Registration failed.';
     }
+  }
+
+  @override
+  void dispose() {
+    usernameController.dispose();
+    emailController.dispose();
+    phoneController.dispose();
+    passwordController.dispose();
+    confirmPasswordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -137,7 +175,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     alignment: Alignment.centerLeft,
                     child: IconButton(
                       icon: const Icon(Icons.arrow_back),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: _isLoading ? null : () => Navigator.pop(context),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -156,7 +194,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton(
-                    onPressed: _selectProfilePicture,
+                    onPressed: _isLoading ? null : _selectProfilePicture,
                     child: const Text('Select Profile Picture'),
                   ),
                   const SizedBox(height: 24),
@@ -165,6 +203,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     label: 'Username',
                     hintText: 'John Doe',
                     controller: usernameController,
+                    enabled: !_isLoading,
                     validator: (val) => val!.isEmpty ? 'Required' : null,
                   ),
                   const SizedBox(height: 16),
@@ -174,7 +213,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hintText: 'johndoe@gmail.com',
                     controller: emailController,
                     keyboardType: TextInputType.emailAddress,
-                    validator: (val) => val!.isEmpty ? 'Required' : null,
+                    enabled: !_isLoading,
+                    validator: (val) {
+                      if (val == null || val.isEmpty) return 'Required';
+                      if (!val.contains('@')) return 'Enter valid email';
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
 
@@ -183,7 +227,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hintText: '98761234',
                     controller: phoneController,
                     keyboardType: TextInputType.phone,
-                    validator: (val) => val!.isEmpty ? 'Required' : null,
+                    enabled: !_isLoading,
+                    // Note: Made phone optional for registration
                   ),
                   const SizedBox(height: 16),
 
@@ -192,6 +237,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hintText: '********',
                     controller: passwordController,
                     obscureText: true,
+                    enabled: !_isLoading,
                     validator: (val) => val!.length < 6 ? 'Min 6 characters' : null,
                   ),
                   const SizedBox(height: 16),
@@ -201,13 +247,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hintText: '********',
                     controller: confirmPasswordController,
                     obscureText: true,
+                    enabled: !_isLoading,
                     validator: (val) =>
                     val != passwordController.text ? 'Passwords don\'t match' : null,
                   ),
                   const SizedBox(height: 40),
 
                   ElevatedButton(
-                    onPressed: () => register(context),
+                    onPressed: _isLoading ? null : () => register(context),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                       backgroundColor: Colors.white,
@@ -217,7 +264,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         side: const BorderSide(color: Colors.black),
                       ),
                     ),
-                    child: const Text('Create Account'),
+                    child: _isLoading
+                        ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                        : const Text('Create Account'),
                   ),
                   const SizedBox(height: 20),
                 ],

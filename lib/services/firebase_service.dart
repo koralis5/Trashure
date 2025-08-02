@@ -1,22 +1,39 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'firestore_service.dart';
 
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirestoreService _firestoreService = FirestoreService();
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     clientId: kIsWeb ? null : '210302117157-ek2ngodb5hg99id20ctec3cvmll0rce0.apps.googleusercontent.com',
     scopes: ['email'],
   );
 
   // Register with email and password
-  Future<UserCredential> register(String email, String password) {
-    return _auth.createUserWithEmailAndPassword(email: email, password: password);
+  Future<UserCredential> register(String email, String password) async {
+    final userCredential = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+
+    // Create initial Firestore profile
+    if (userCredential.user != null) {
+      await _firestoreService.createUserProfile(
+        uid: userCredential.user!.uid,
+        email: email,
+        displayName: userCredential.user!.displayName ?? '',
+      );
+    }
+
+    return userCredential;
   }
 
   // Login with email and password
@@ -24,20 +41,16 @@ class FirebaseService {
     return _auth.signInWithEmailAndPassword(email: email, password: password);
   }
 
-  // Google Sign-In with profile image handling
+  // Google Sign-In with Firestore integration
   Future<UserCredential> googleSignIn() async {
     try {
+      UserCredential userCredential;
+
       if (kIsWeb) {
         // Web implementation
         GoogleAuthProvider googleProvider = GoogleAuthProvider();
         googleProvider.addScope('email');
-        final userCredential = await _auth.signInWithPopup(googleProvider);
-
-        // Handle profile image for web
-        if (userCredential.user?.photoURL != null) {
-          await _storeProfileImage(userCredential.user!);
-        }
-        return userCredential;
+        userCredential = await _auth.signInWithPopup(googleProvider);
       } else {
         // Mobile implementation
         final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
@@ -50,41 +63,68 @@ class FirebaseService {
           idToken: googleAuth.idToken,
         );
 
-        final userCredential = await _auth.signInWithCredential(credential);
-
-        // Handle profile image for mobile
-        if (userCredential.user?.photoURL != null) {
-          await _storeProfileImage(userCredential.user!);
-        }
-        return userCredential;
+        userCredential = await _auth.signInWithCredential(credential);
       }
+
+      // Handle Firestore profile for Google sign-in
+      if (userCredential.user != null) {
+        final user = userCredential.user!;
+
+        // Check if user profile exists in Firestore
+        final existingProfile = await _firestoreService.getUserProfile(user.uid);
+
+        if (existingProfile == null) {
+          // Create new profile for Google user
+          String? base64Image;
+          if (user.photoURL != null) {
+            base64Image = await _downloadImageAsBase64(user.photoURL!);
+          }
+
+          await _firestoreService.createUserProfile(
+            uid: user.uid,
+            email: user.email ?? '',
+            displayName: user.displayName ?? '',
+            profileImageBase64: base64Image,
+          );
+        } else {
+          // Update existing profile with latest Google info
+          await _firestoreService.updateUserProfile(
+            uid: user.uid,
+            displayName: user.displayName,
+          );
+        }
+
+        // Handle profile image storage
+        if (user.photoURL != null && !user.photoURL!.contains('firebase')) {
+          await _storeProfileImage(user);
+        }
+      }
+
+      return userCredential;
     } catch (e) {
       print('Google sign-in error: $e');
       rethrow;
     }
   }
 
-  // Helper method to store profile image from URL
-  Future<void> _storeProfileImage(User user) async {
+  // Helper method to download image from URL and convert to base64
+  Future<String?> _downloadImageAsBase64(String imageUrl) async {
     try {
-      if (user.photoURL == null) return;
-
-      // Download the image
-      final response = await http.get(Uri.parse(user.photoURL!));
+      final response = await http.get(Uri.parse(imageUrl));
       if (response.statusCode == 200) {
-        // Upload to Firebase Storage
-        final ref = _storage.ref().child('profile_images/${user.uid}.jpg');
-        await ref.putData(response.bodyBytes);
-
-        // Get new download URL
-        final newUrl = await ref.getDownloadURL();
-
-        // Update user profile
-        await user.updatePhotoURL(newUrl);
+        return base64Encode(response.bodyBytes);
       }
+      return null;
     } catch (e) {
-      print('Error storing profile image: $e');
+      print('Error downloading image as base64: $e');
+      return null;
     }
+  }
+
+  // Helper method to store profile image from URL (legacy - not used with base64)
+  Future<void> _storeProfileImage(User user) async {
+    // This method is no longer needed with base64 approach
+    // Keeping for backward compatibility
   }
 
   // Reset password
@@ -92,7 +132,7 @@ class FirebaseService {
     return _auth.sendPasswordResetEmail(email: email);
   }
 
-  // Logout
+  // Logout with Firestore cleanup if needed
   Future<void> logOut() async {
     await _googleSignIn.signOut();
     await _auth.signOut();
@@ -108,33 +148,32 @@ class FirebaseService {
     return _auth.authStateChanges();
   }
 
-  // Upload profile image from file and return URL
-  Future<String?> uploadProfileImage(String uid, XFile imageFile) async {
+  // Upload profile image and store as base64 in Firestore
+  Future<String?> uploadProfileImageAsBase64(String uid, XFile imageFile) async {
     try {
-      final ref = _storage.ref().child('profile_images/$uid.jpg');
-
-      UploadTask uploadTask;
-      if (kIsWeb) {
-        final bytes = await imageFile.readAsBytes();
-        uploadTask = ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
-      } else {
-        final file = File(imageFile.path);
-        uploadTask = ref.putFile(file);
+      final base64String = await _firestoreService.convertImageToBase64(imageFile);
+      if (base64String != null) {
+        await _firestoreService.updateUserProfile(
+          uid: uid,
+          profileImageBase64: base64String,
+        );
+        print('Profile image uploaded as base64 for uid: $uid');
+        return base64String;
       }
-
-      final snapshot = await uploadTask.whenComplete(() {});
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-
-      // Update user's photoURL if they're logged in
-      final user = _auth.currentUser;
-      if (user != null && user.uid == uid) {
-        await user.updatePhotoURL(downloadUrl);
-      }
-
-      return downloadUrl;
-    } catch (e) {
-      print('Error uploading profile image: $e');
       return null;
+    } catch (e) {
+      print('Error uploading profile image as base64: $e');
+      return null;
+    }
+  }
+
+  // Remove profile image from Firestore
+  Future<void> removeProfileImage(String uid) async {
+    try {
+      await _firestoreService.removeUserProfileImage(uid);
+      print('Profile image removed for uid: $uid');
+    } catch (e) {
+      print('Error removing profile image: $e');
     }
   }
 
@@ -149,11 +188,10 @@ class FirebaseService {
     }
   }
 
-  // Delete profile image
+  // Delete profile image (legacy - keeping for backward compatibility)
   Future<void> deleteProfileImage(String uid) async {
     try {
-      final ref = _storage.ref().child('profile_images/$uid.jpg');
-      await ref.delete();
+      await removeProfileImage(uid);
     } catch (e) {
       print('Error deleting profile image: $e');
     }
@@ -176,7 +214,11 @@ class FirebaseService {
       verificationCompleted: (PhoneAuthCredential credential) async {
         try {
           final userCredential = await _auth.signInWithCredential(credential);
-          onAutoVerified(userCredential.user!);
+          if (userCredential.user != null) {
+            // Create/update Firestore profile for phone user
+            await _handlePhoneUserProfile(userCredential.user!, phoneNumber);
+            onAutoVerified(userCredential.user!);
+          }
         } catch (e) {
           print('Auto sign-in failed: $e');
         }
@@ -200,7 +242,35 @@ class FirebaseService {
       verificationId: verificationId,
       smsCode: smsCode,
     );
-    return await _auth.signInWithCredential(credential);
+    final userCredential = await _auth.signInWithCredential(credential);
+
+    // Handle Firestore profile for phone sign-in
+    if (userCredential.user != null) {
+      await _handlePhoneUserProfile(userCredential.user!, userCredential.user!.phoneNumber ?? '');
+    }
+
+    return userCredential;
+  }
+
+  // Helper method to handle phone user profile
+  Future<void> _handlePhoneUserProfile(User user, String phoneNumber) async {
+    final existingProfile = await _firestoreService.getUserProfile(user.uid);
+
+    if (existingProfile == null) {
+      // Create new profile for phone user
+      await _firestoreService.createUserProfile(
+        uid: user.uid,
+        email: user.email ?? '',
+        displayName: user.displayName ?? 'Phone User',
+        phoneNumber: phoneNumber,
+      );
+    } else {
+      // Update existing profile
+      await _firestoreService.updateUserProfile(
+        uid: user.uid,
+        phoneNumber: phoneNumber,
+      );
+    }
   }
 
   // Send verification email (async)
@@ -221,7 +291,6 @@ class FirebaseService {
     return false;
   }
 
-
   // Stream for email verification changes
   Stream<bool> get emailVerificationStream {
     return _auth.authStateChanges().asyncMap((user) async {
@@ -233,7 +302,7 @@ class FirebaseService {
     });
   }
 
-  //reauthenticate user
+  // Reauthenticate user
   Future<void> reauthenticateUser(String email, String password) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('No user is currently signed in.');
@@ -242,11 +311,14 @@ class FirebaseService {
     await user.reauthenticateWithCredential(credential);
   }
 
-  //Change Email
+  // Change Email
   Future<void> changeEmail(String newEmail) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('No user is currently signed in.');
 
     await user.verifyBeforeUpdateEmail(newEmail);
   }
+
+  // Get Firestore service instance
+  FirestoreService get firestoreService => _firestoreService;
 }
