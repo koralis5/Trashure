@@ -4,8 +4,9 @@ import 'dart:convert';
 import '../models/colours.dart';
 import '../widgets/bottom_navbar.dart';
 import 'edit_profile_screen.dart';
-import 'own_listing_screen.dart';
+import 'listing_detail_screen.dart';
 import '../services/firebase_service.dart';
+import '../services/listing_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   static const routeName = '/profile';
@@ -17,12 +18,14 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final FirebaseService fbService = GetIt.instance<FirebaseService>();
+  final ListingService _listingService = GetIt.instance<ListingService>();
   final Color backgroundColor = AppColour.background;
 
   String userName = "Loading...";
   String userEmail = "Loading...";
   String userPhone = "";
   String? profileImageBase64;
+  List<Map<String, dynamic>> userListings = [];
   bool _isLoading = true;
 
   @override
@@ -45,10 +48,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         // Get additional data from Firestore
         final firestoreProfile = await fbService.firestoreService.getUserProfile(user.uid);
 
+        // Get user's listings
+        final listings = await _listingService.getUserListings(user.uid);
+
         setState(() {
           userName = firestoreProfile?['displayName'] ?? user.displayName ?? 'No name set';
           userPhone = firestoreProfile?['phone'] ?? '';
           profileImageBase64 = firestoreProfile?['profileImageBase64'];
+          userListings = listings;
         });
       }
     } catch (e) {
@@ -65,36 +72,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  String? _getSafeImageUrl(String? url) {
-    if (url == null) return null;
-    // Handle Google profile image URLs
-    if (url.contains('googleusercontent.com')) {
-      return url.replaceAll('s96-c', 's400-c'); // Get higher resolution image
-    }
-    return url;
-  }
-
-  void _showOptions(BuildContext context) {
+  void _showListingOptions(BuildContext context, Map<String, dynamic> listing) {
     showModalBottomSheet(
       context: context,
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
+            leading: const Icon(Icons.visibility),
+            title: const Text('View Listing'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(
+                context,
+                ListingDetailScreen.routeName,
+                arguments: listing,
+              ).then((_) => _loadUserData());
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.edit),
             title: const Text('Edit Listing'),
             onTap: () {
               Navigator.pop(context);
-              Navigator.pushNamed(context, EditProfileScreen.routeName)
-                  .then((_) => _loadUserData());
+              Navigator.pushNamed(
+                context,
+                '/edit-listing',
+                arguments: listing,
+              ).then((_) => _loadUserData());
             },
           ),
           ListTile(
-            leading: const Icon(Icons.delete),
+            leading: const Icon(Icons.delete, color: Colors.red),
             title: const Text('Delete Listing'),
             onTap: () {
               Navigator.pop(context);
-              _confirmDelete(context);
+              _confirmDeleteListing(context, listing);
             },
           ),
         ],
@@ -102,23 +115,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _confirmDelete(BuildContext context) {
+  void _confirmDeleteListing(BuildContext context, Map<String, dynamic> listing) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Listing'),
-        content: const Text('Are you sure you want to delete this listing?'),
+        content: Text('Are you sure you want to delete "${listing['title']}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Listing deleted successfully')),
-              );
+
+              try {
+                await _listingService.deleteListing(listing['id']);
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Listing deleted successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  _loadUserData(); // Refresh the listings
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error deleting listing: ${e.toString()}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
@@ -144,6 +177,93 @@ class _ProfileScreenState extends State<ProfileScreen> {
       radius: 60,
       backgroundColor: Colors.grey[300],
       child: const Icon(Icons.person, size: 60, color: Colors.white),
+    );
+  }
+
+  Widget _buildListingImage(String? imageBase64) {
+    if (imageBase64 != null && imageBase64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(imageBase64);
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+        );
+      } catch (e) {
+        print('Error decoding listing image: $e');
+      }
+    }
+
+    return Container(
+      color: Colors.grey[200],
+      child: const Icon(
+        Icons.image_not_supported,
+        size: 40,
+        color: Colors.grey,
+      ),
+    );
+  }
+
+  Widget _buildListingCard(Map<String, dynamic> listing) {
+    final title = listing['title'] ?? 'No Title';
+    final price = listing['price']?.toString() ?? '0';
+    final imageBase64 = listing['imageBase64'];
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushNamed(
+          context,
+          ListingDetailScreen.routeName,
+          arguments: listing,
+        ).then((_) => _loadUserData());
+      },
+      onLongPress: () {
+        _showListingOptions(context, listing);
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 180,
+            height: 180,
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              border: Border.all(),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: _buildListingImage(imageBase64),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontSize: 16),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  '\$$price',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  userName,
+                  style: const TextStyle(color: Colors.grey),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -202,70 +322,86 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'My Listings',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
+                // My Listings Section
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: GridView.count(
-                    shrinkWrap: true,
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.72,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.pushNamed(context, OwnListingScreen.routeName);
-                        },
-                        onLongPress: () {
-                          _showOptions(context);
-                        },
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 180,
-                              height: 180,
-                              margin: const EdgeInsets.symmetric(horizontal: 8),
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                border: Border.all(),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Image.asset(
-                                'images/chair.png',
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('Stylish Chair', style: TextStyle(fontSize: 16)),
-                                  const Text('\$120', style: TextStyle(fontWeight: FontWeight.bold)),
-                                  Text(userName, style: const TextStyle(color: Colors.grey)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                      const Text(
+                        'My Listings',
+                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        '${userListings.length} items',
+                        style: const TextStyle(color: Colors.grey),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(height: 16),
+
+                // Listings Grid
+                if (userListings.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No listings yet',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Tap the + button to add your first listing',
+                          style: TextStyle(
+                            color: Colors.grey[500],
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/add-listing')
+                                .then((_) => _loadUserData());
+                          },
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add Listing'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColour.primaryGreen,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        childAspectRatio: 0.72,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                      ),
+                      itemCount: userListings.length,
+                      itemBuilder: (context, index) {
+                        return _buildListingCard(userListings[index]);
+                      },
+                    ),
+                  ),
                 const SizedBox(height: 16),
               ],
             ),

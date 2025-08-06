@@ -6,7 +6,6 @@ import 'screens/home_screen.dart';
 import 'screens/forget_password_screen.dart';
 import 'screens/add_listing_screen.dart';
 import 'screens/profile_screen.dart';
-import 'screens/own_listing_screen.dart';
 import 'screens/edit_listing_screen.dart';
 import 'screens/edit_profile_screen.dart';
 import 'firebase_options.dart';
@@ -16,6 +15,8 @@ import 'services/firebase_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'core/setup.dart';
 import 'screens/email_verification_screen.dart';
+import 'screens/listing_detail_screen.dart';
+import 'screens/qr_payment_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,10 +69,11 @@ class MyApp extends StatelessWidget {
             AddListingScreen.routeName: (_) => const AddListingScreen(),
             ProfileScreen.routeName: (_) => const ProfileScreen(),
             SelectListingImage.routeName: (_) => const SelectListingImage(),
-            OwnListingScreen.routeName: (_) => const OwnListingScreen(),
+            ListingDetailScreen.routeName: (_) => const ListingDetailScreen(),
             EditListingScreen.routeName: (_) => const EditListingScreen(),
             EditProfileScreen.routeName: (_) => const EditProfileScreen(),
             EmailVerificationScreen.routeName: (_) => const EmailVerificationScreen(),
+            '/qr-payment': (_) => const QrPaymentScreen(),
           },
         );
       },

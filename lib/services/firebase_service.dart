@@ -13,7 +13,8 @@ class FirebaseService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirestoreService _firestoreService = FirestoreService();
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId: kIsWeb ? null : '210302117157-ek2ngodb5hg99id20ctec3cvmll0rce0.apps.googleusercontent.com',
+    // Client ID is no longer needed for mobile platforms (Android/iOS)
+    // For web, you need to configure through Firebase or Google Cloud Console
     scopes: ['email'],
   );
 
