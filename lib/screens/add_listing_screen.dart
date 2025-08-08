@@ -25,6 +25,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
+  final TextEditingController locationController = TextEditingController();
 
   final ListingService _listingService = GetIt.instance<ListingService>();
   final FirestoreService _firestoreService = GetIt.instance<FirestoreService>();
@@ -33,6 +34,8 @@ class _AddListingScreenState extends State<AddListingScreen> {
   XFile? _imageFile;
   bool _isLoading = false;
   String? _sellerName;
+  double? _selectedLatitude;
+  double? _selectedLongitude;
 
   @override
   void initState() {
@@ -45,6 +48,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
     nameController.dispose();
     priceController.dispose();
     descriptionController.dispose();
+    locationController.dispose();
     super.dispose();
   }
 
@@ -55,6 +59,13 @@ class _AddListingScreenState extends State<AddListingScreen> {
         final profile = await _firestoreService.getUserProfile(user.uid);
         setState(() {
           _sellerName = profile?['displayName'] ?? user.displayName ?? 'Unknown Seller';
+          // Pre-fill location with user's address if available
+          final userAddress = profile?['address'];
+          if (userAddress != null && userAddress.isNotEmpty) {
+            locationController.text = userAddress;
+            _selectedLatitude = profile?['latitude'];
+            _selectedLongitude = profile?['longitude'];
+          }
         });
       } catch (e) {
         setState(() {
@@ -209,6 +220,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
       final title = nameController.text.trim();
       final price = double.tryParse(priceController.text.trim()) ?? 0.0;
       final description = descriptionController.text.trim();
+      final meetupLocation = locationController.text.trim();
 
       // Convert image to base64 if provided
       String? imageBase64;
@@ -227,6 +239,9 @@ class _AddListingScreenState extends State<AddListingScreen> {
         description: description,
         sellerName: _sellerName!,
         imageBase64: imageBase64,
+        meetupLocation: meetupLocation,
+        latitude: _selectedLatitude,
+        longitude: _selectedLongitude,
       );
 
       if (listingId != null && mounted) {
@@ -241,6 +256,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
         nameController.clear();
         priceController.clear();
         descriptionController.clear();
+        locationController.clear();
         setState(() => _imageFile = null);
 
         // Navigate to home or profile
@@ -354,7 +370,7 @@ class _AddListingScreenState extends State<AddListingScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Description
+              // Description - Made bigger
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -363,16 +379,77 @@ class _AddListingScreenState extends State<AddListingScreen> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  CustomTextField(
-                    hintText: 'Enter description',
-                    controller: descriptionController,
-                    keyboardType: TextInputType.multiline,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a description';
-                      }
-                      return null;
-                    },
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: TextFormField(
+                      controller: descriptionController,
+                      maxLines: 12, // Increased from 8 to 12 for bigger description box
+                      decoration: const InputDecoration(
+                        hintText: 'Describe your item in detail...\n\nInclude:\n• Condition of the item\n• Any defects or issues\n• How you acquired it\n• Why you\'re selling it\n• Any additional accessories included',
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.all(16), // Increased padding
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter a description';
+                        }
+                        if (value.trim().length < 10) {
+                          return 'Please provide a more detailed description';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Meetup Location
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Meetup Location',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: CustomTextField(
+                          hintText: 'Enter meetup location',
+                          controller: locationController,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter a meetup location';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          final result = await Navigator.pushNamed(context, '/map-picker');
+                          if (result != null && result is Map<String, dynamic>) {
+                            setState(() {
+                              locationController.text = result['address'];
+                              _selectedLatitude = result['latitude'];
+                              _selectedLongitude = result['longitude'];
+                            });
+                          }
+                        },
+                        icon: const Icon(Icons.map),
+                        label: const Text('Map'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColour.primaryGreen,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

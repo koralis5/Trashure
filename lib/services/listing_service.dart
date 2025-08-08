@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:math' as Math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ListingService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Create a new listing
+  // Create a new listing (fixed timestamp issue)
   Future<String?> createListing({
     required String userId,
     required String title,
@@ -14,18 +15,34 @@ class ListingService {
     required String description,
     required String sellerName,
     String? imageBase64,
+    String? meetupLocation,
+    double? latitude,
+    double? longitude,
   }) async {
     try {
+      final now = DateTime.now(); // Use regular DateTime instead
+
       final listingData = {
         'userId': userId,
         'title': title,
         'price': price,
+        'originalPrice': price, // Track original price
+        'priceHistory': [
+          {
+            'price': price,
+            'timestamp': Timestamp.fromDate(now), // Convert DateTime to Timestamp
+          }
+        ],
         'description': description,
         'sellerName': sellerName,
         'imageBase64': imageBase64,
+        'meetupLocation': meetupLocation ?? '',
+        'latitude': latitude,
+        'longitude': longitude,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'isActive': true,
+        'isSold': false,
       };
 
       final docRef = await _firestore.collection('listings').add(listingData);
@@ -33,6 +50,51 @@ class ListingService {
       return docRef.id;
     } catch (e) {
       print('Error creating listing: $e');
+      throw e;
+    }
+  }
+
+  // Update a listing (fixed timestamp issue)
+  Future<void> updateListing({
+    required String listingId,
+    String? title,
+    double? price,
+    String? description,
+    String? imageBase64,
+    String? meetupLocation,
+    double? latitude,
+    double? longitude,
+  }) async {
+    try {
+      final updateData = <String, dynamic>{
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      if (title != null) updateData['title'] = title;
+      if (description != null) updateData['description'] = description;
+      if (imageBase64 != null) updateData['imageBase64'] = imageBase64;
+      if (meetupLocation != null) updateData['meetupLocation'] = meetupLocation;
+      if (latitude != null) updateData['latitude'] = latitude;
+      if (longitude != null) updateData['longitude'] = longitude;
+
+      // Handle price update with history (fixed timestamp issue)
+      if (price != null) {
+        updateData['price'] = price;
+
+        // Add new price entry to history using regular DateTime
+        final now = DateTime.now();
+        updateData['priceHistory'] = FieldValue.arrayUnion([
+          {
+            'price': price,
+            'timestamp': Timestamp.fromDate(now), // Convert DateTime to Timestamp
+          }
+        ]);
+      }
+
+      await _firestore.collection('listings').doc(listingId).update(updateData);
+      print('Listing updated: $listingId');
+    } catch (e) {
+      print('Error updating listing: $e');
       throw e;
     }
   }
@@ -154,30 +216,80 @@ class ListingService {
     }
   }
 
-  // Update a listing
-  Future<void> updateListing({
-    required String listingId,
-    String? title,
-    double? price,
-    String? description,
-    String? imageBase64,
+  // Get nearby listings based on location
+  Future<List<Map<String, dynamic>>> getNearbyListings({
+    required double latitude,
+    required double longitude,
+    double radiusKm = 10.0,
   }) async {
     try {
-      final updateData = <String, dynamic>{
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
+      // Get all active listings first
+      final querySnapshot = await _firestore
+          .collection('listings')
+          .where('isActive', isEqualTo: true)
+          .get();
 
-      if (title != null) updateData['title'] = title;
-      if (price != null) updateData['price'] = price;
-      if (description != null) updateData['description'] = description;
-      if (imageBase64 != null) updateData['imageBase64'] = imageBase64;
+      final listings = querySnapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
 
-      await _firestore.collection('listings').doc(listingId).update(updateData);
-      print('Listing updated: $listingId');
+      // Filter by distance locally (for simplicity)
+      final nearbyListings = listings.where((listing) {
+        final listingLat = listing['latitude'];
+        final listingLng = listing['longitude'];
+
+        if (listingLat == null || listingLng == null) return false;
+
+        final distance = _calculateDistance(
+          latitude,
+          longitude,
+          listingLat.toDouble(),
+          listingLng.toDouble(),
+        );
+
+        return distance <= radiusKm;
+      }).toList();
+
+      // Sort by distance
+      nearbyListings.sort((a, b) {
+        final distanceA = _calculateDistance(
+          latitude, longitude,
+          a['latitude'].toDouble(), a['longitude'].toDouble(),
+        );
+        final distanceB = _calculateDistance(
+          latitude, longitude,
+          b['latitude'].toDouble(), b['longitude'].toDouble(),
+        );
+        return distanceA.compareTo(distanceB);
+      });
+
+      return nearbyListings;
     } catch (e) {
-      print('Error updating listing: $e');
+      print('Error getting nearby listings: $e');
       throw e;
     }
+  }
+
+  // Calculate distance between two coordinates (Haversine formula)
+  double _calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+    const double earthRadius = 6371; // Earth's radius in kilometers
+
+    double dLat = _degreesToRadians(lat2 - lat1);
+    double dLng = _degreesToRadians(lng2 - lng1);
+
+    double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(_degreesToRadians(lat1)) * Math.cos(_degreesToRadians(lat2)) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+    double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return earthRadius * c;
+  }
+
+  double _degreesToRadians(double degrees) {
+    return degrees * (Math.pi / 180);
   }
 
   // Delete a listing (soft delete)

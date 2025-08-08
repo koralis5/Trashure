@@ -29,6 +29,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final usernameController = TextEditingController();
   final emailController = TextEditingController();
   final phoneController = TextEditingController();
+  final addressController = TextEditingController();
   final currentPasswordController = TextEditingController();
   final newPasswordController = TextEditingController();
 
@@ -65,6 +66,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         if (firestoreProfile != null && mounted) {
           usernameController.text = firestoreProfile['displayName'] ?? user.displayName ?? '';
           phoneController.text = firestoreProfile['phone'] ?? '';
+          addressController.text = firestoreProfile['address'] ?? '';
           _currentImageBase64 = firestoreProfile['profileImageBase64'];
         }
 
@@ -89,6 +91,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     usernameController.dispose();
     emailController.dispose();
     phoneController.dispose();
+    addressController.dispose();
     currentPasswordController.dispose();
     newPasswordController.dispose();
     super.dispose();
@@ -262,11 +265,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         newImageBase64 = null;
       }
 
-      // Update Firestore with profile data including image
+      // Update Firestore with profile data including image and address
       await _firestoreService.updateUserProfile(
         uid: user.uid,
         displayName: usernameController.text.trim(),
         phoneNumber: phoneController.text.trim(),
+        address: addressController.text.trim(),
         profileImageBase64: newImageBase64,
       );
 
@@ -410,6 +414,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 hintText: 'Enter your phone number',
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 16),
+
+              // Address field - NEW
+              CustomTextField(
+                label: 'Address',
+                hintText: 'Enter your address for meetups',
+                controller: addressController,
+                keyboardType: TextInputType.streetAddress,
               ),
               const SizedBox(height: 16),
 

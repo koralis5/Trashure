@@ -3,6 +3,8 @@ import '../services/firebase_service.dart';
 import '../services/firestore_service.dart';
 import '../services/listing_service.dart';
 import '../services/nets_qr_service.dart';
+import '../services/notification_service.dart';
+import '../services/chat_service.dart';
 
 void setupServices() {
   final getIt = GetIt.instance;
@@ -18,4 +20,10 @@ void setupServices() {
 
   // Register NETS QR Service
   getIt.registerSingleton<NetsQrService>(NetsQrService());
+
+  // Register Notification Service
+  getIt.registerSingleton<NotificationService>(NotificationService());
+
+  // Register Chat Service
+  getIt.registerSingleton<ChatService>(ChatService());
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:trashure/screens/login_screen.dart';
-import 'package:trashure/screens/select_listing_image.dart';
 import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/forget_password_screen.dart';
@@ -8,6 +7,7 @@ import 'screens/add_listing_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/edit_listing_screen.dart';
 import 'screens/edit_profile_screen.dart';
+import 'screens/map_picker_screen.dart';
 import 'firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:get_it/get_it.dart';
@@ -28,7 +28,6 @@ void main() async {
 
   runApp(const MyApp());
 }
-
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -68,12 +67,12 @@ class MyApp extends StatelessWidget {
             ResetPasswordScreen.routeName: (_) => const ResetPasswordScreen(),
             AddListingScreen.routeName: (_) => const AddListingScreen(),
             ProfileScreen.routeName: (_) => const ProfileScreen(),
-            SelectListingImage.routeName: (_) => const SelectListingImage(),
             ListingDetailScreen.routeName: (_) => const ListingDetailScreen(),
             EditListingScreen.routeName: (_) => const EditListingScreen(),
             EditProfileScreen.routeName: (_) => const EditProfileScreen(),
             EmailVerificationScreen.routeName: (_) => const EmailVerificationScreen(),
-            '/qr-payment': (_) => const QrPaymentScreen(),
+            MapPickerScreen.routeName: (_) => const MapPickerScreen(),
+            QrPaymentScreen.routeName: (_) => const QrPaymentScreen(),
           },
         );
       },

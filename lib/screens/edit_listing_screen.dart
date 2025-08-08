@@ -21,6 +21,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
 
   final ListingService _listingService = GetIt.instance<ListingService>();
   final ImagePicker _picker = ImagePicker();
@@ -29,6 +30,8 @@ class _EditListingScreenState extends State<EditListingScreen> {
   XFile? _newImageFile;
   String? _currentImageBase64;
   bool _isLoading = false;
+  double? _selectedLatitude;
+  double? _selectedLongitude;
 
   @override
   void initState() {
@@ -45,7 +48,10 @@ class _EditListingScreenState extends State<EditListingScreen> {
       _nameController.text = listing!['title'] ?? '';
       _priceController.text = listing!['price']?.toString() ?? '';
       _descriptionController.text = listing!['description'] ?? '';
+      _locationController.text = listing!['meetupLocation'] ?? '';
       _currentImageBase64 = listing!['imageBase64'];
+      _selectedLatitude = listing!['latitude'];
+      _selectedLongitude = listing!['longitude'];
       setState(() {});
     }
   }
@@ -55,6 +61,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
     _nameController.dispose();
     _priceController.dispose();
     _descriptionController.dispose();
+    _locationController.dispose();
     super.dispose();
   }
 
@@ -195,6 +202,7 @@ class _EditListingScreenState extends State<EditListingScreen> {
       final title = _nameController.text.trim();
       final price = double.tryParse(_priceController.text.trim()) ?? 0.0;
       final description = _descriptionController.text.trim();
+      final meetupLocation = _locationController.text.trim();
 
       String? imageBase64 = _currentImageBase64;
 
@@ -212,6 +220,9 @@ class _EditListingScreenState extends State<EditListingScreen> {
         price: price,
         description: description,
         imageBase64: imageBase64,
+        meetupLocation: meetupLocation,
+        latitude: _selectedLatitude,
+        longitude: _selectedLongitude,
       );
 
       if (mounted) {
@@ -418,6 +429,52 @@ class _EditListingScreenState extends State<EditListingScreen> {
                   }
                   return null;
                 },
+              ),
+              const SizedBox(height: 16),
+
+              // Meetup Location - NEW
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Meetup Location', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _locationController,
+                      decoration: const InputDecoration(
+                        hintText: 'Enter meetup location',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter a meetup location';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.pushNamed(context, '/map-picker');
+                      if (result != null && result is Map<String, dynamic>) {
+                        setState(() {
+                          _locationController.text = result['address'];
+                          _selectedLatitude = result['latitude'];
+                          _selectedLongitude = result['longitude'];
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.map),
+                    label: const Text('Map'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
 

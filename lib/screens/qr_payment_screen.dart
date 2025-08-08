@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:get_it/get_it.dart';
 import '../models/colours.dart';
 import '../services/nets_qr_service.dart';
+import '../services/notification_service.dart';
 
 class QrPaymentScreen extends StatefulWidget {
   static const routeName = '/qr-payment';
@@ -18,6 +19,7 @@ class QrPaymentScreen extends StatefulWidget {
 
 class _QrPaymentScreenState extends State<QrPaymentScreen> {
   final NetsQrService _netsService = NetsQrService();
+  final NotificationService _notificationService = GetIt.instance<NotificationService>();
 
   String? qrCodeBase64;
   String? txnRetrievalRef;
@@ -205,6 +207,13 @@ class _QrPaymentScreenState extends State<QrPaymentScreen> {
       isPaymentCompleted = true;
       statusMessage = 'Payment Successful!';
     });
+
+    // Send success notification
+    final price = double.tryParse(listing!['price']?.toString() ?? '0') ?? 0.0;
+    _notificationService.showPaymentSuccessNotification(
+      orderId: orderId!,
+      amount: price,
+    );
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(

@@ -10,6 +10,69 @@ class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
+  // Create initial user profile (updated with address and location)
+  Future<void> createUserProfile({
+    required String uid,
+    required String email,
+    required String displayName,
+    String? phoneNumber,
+    String? profileImageBase64,
+    String? address,
+    double? latitude,
+    double? longitude,
+  }) async {
+    try {
+      final profileData = {
+        'uid': uid,
+        'email': email,
+        'displayName': displayName,
+        'phone': phoneNumber ?? '',
+        'profileImageBase64': profileImageBase64,
+        'address': address ?? '',
+        'latitude': latitude,
+        'longitude': longitude,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      await _firestore.collection('users').doc(uid).set(profileData);
+      print('Initial user profile created for uid: $uid');
+    } catch (e) {
+      print('Error creating user profile: $e');
+      throw e;
+    }
+  }
+
+  // Update user profile (updated with address and location)
+  Future<void> updateUserProfile({
+    required String uid,
+    String? displayName,
+    String? phoneNumber,
+    String? profileImageBase64,
+    String? address,
+    double? latitude,
+    double? longitude,
+  }) async {
+    try {
+      final updateData = <String, dynamic>{
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      if (displayName != null) updateData['displayName'] = displayName;
+      if (phoneNumber != null) updateData['phone'] = phoneNumber;
+      if (profileImageBase64 != null) updateData['profileImageBase64'] = profileImageBase64;
+      if (address != null) updateData['address'] = address;
+      if (latitude != null) updateData['latitude'] = latitude;
+      if (longitude != null) updateData['longitude'] = longitude;
+
+      await _firestore.collection('users').doc(uid).update(updateData);
+      print('User profile updated for uid: $uid');
+    } catch (e) {
+      print('Error updating user profile: $e');
+      throw e;
+    }
+  }
+
   // Save user profile data to Firestore
   Future<void> saveUserProfile(String uid, Map<String, dynamic> data) async {
     try {
@@ -33,57 +96,6 @@ class FirestoreService {
       return null;
     } catch (e) {
       print('Error getting user profile: $e');
-      throw e;
-    }
-  }
-
-  // Create initial user profile (called during registration)
-  Future<void> createUserProfile({
-    required String uid,
-    required String email,
-    required String displayName,
-    String? phoneNumber,
-    String? profileImageBase64,
-  }) async {
-    try {
-      final profileData = {
-        'uid': uid,
-        'email': email,
-        'displayName': displayName,
-        'phone': phoneNumber ?? '',
-        'profileImageBase64': profileImageBase64,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      await _firestore.collection('users').doc(uid).set(profileData);
-      print('Initial user profile created for uid: $uid');
-    } catch (e) {
-      print('Error creating user profile: $e');
-      throw e;
-    }
-  }
-
-  // Update user profile (called when editing profile)
-  Future<void> updateUserProfile({
-    required String uid,
-    String? displayName,
-    String? phoneNumber,
-    String? profileImageBase64,
-  }) async {
-    try {
-      final updateData = <String, dynamic>{
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      if (displayName != null) updateData['displayName'] = displayName;
-      if (phoneNumber != null) updateData['phone'] = phoneNumber;
-      if (profileImageBase64 != null) updateData['profileImageBase64'] = profileImageBase64;
-
-      await _firestore.collection('users').doc(uid).update(updateData);
-      print('User profile updated for uid: $uid');
-    } catch (e) {
-      print('Error updating user profile: $e');
       throw e;
     }
   }
